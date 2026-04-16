@@ -1,0 +1,44 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+orders = pd.read_csv('olist_orders_dataset.csv')
+payments = pd.read_csv('olist_order_payments_dataset.csv')
+customers = pd.read_csv('olist_customers_dataset.csv')
+
+pay_dist = payments[payments['payment_type'] != 'not_defined'].groupby('payment_type')['payment_value'].sum().reset_index()
+pay_dist = pay_dist.sort_values('payment_value', ascending=False)
+
+pay_dist['payment_type'] = pay_dist['payment_type'].map({'credit_card': 'Cartão de Crédito', 'boleto': 'Boleto', 'voucher': 'Voucher', 'debit_card': 'Cartão de Débito'})
+
+plt.figure(figsize=(8, 5))
+sns.barplot(data=pay_dist, x='payment_type', y='payment_value', palette='Blues_r')
+plt.title('Receita Total por Meio de Pagamento')
+plt.ylabel('Receita (milhões de reais)')
+plt.xlabel('Meio de Pagamento')
+plt.show()
+
+cc_pay = payments[payments['payment_type'] == 'credit_card']
+inst_dist = cc_pay['payment_installments'].value_counts().reset_index()
+inst_dist.columns = ['Parcelas', 'Qtd_Pedidos']
+
+inst_dist = inst_dist[(inst_dist['Parcelas'] >= 1) & (inst_dist['Parcelas'] <= 12)].sort_values('Parcelas')
+inst_dist['Parcelas'] = inst_dist['Parcelas'].astype(str) + 'x'
+
+plt.figure(figsize=(10, 5))
+sns.barplot(data=inst_dist, x='Parcelas', y='Qtd_Pedidos', color='mediumseagreen')
+plt.title('Distribuição de Compras por Número de Parcelas (Cartão)')
+plt.ylabel('Quantidade de Pedidos')
+plt.xlabel('Número de Parcelas')
+plt.show()
+
+df_rfm = orders.merge(customers, on='customer_id')
+freq = df_rfm.groupby('customer_unique_id').size().reset_index(name='compras')
+
+freq['tipo'] = freq['compras'].apply(lambda x: 'Única Compra' if x == 1 else 'Recompra (2+ vezes)')
+rep_summ = freq['tipo'].value_counts()
+
+plt.figure(figsize=(6, 6))
+plt.pie(rep_summ, labels=rep_summ.index, autopct='%1.1f%%', startangle=90, colors=['tomato', 'lightgreen'])
+plt.title('Taxa de Retenção de Clientes (Recompra)')
+plt.show()
