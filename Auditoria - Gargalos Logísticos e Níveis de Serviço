@@ -1,0 +1,60 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+orders = pd.read_csv('olist_orders_dataset.csv')
+reviews = pd.read_csv('olist_order_reviews_dataset.csv')
+customers = pd.read_csv('olist_customers_dataset.csv')
+
+cols_datas = ['order_purchase_timestamp', 'order_approved_at', 
+              'order_delivered_carrier_date', 'order_delivered_customer_date', 
+              'order_estimated_delivery_date']
+
+for col in cols_datas:
+    orders[col] = pd.to_datetime(orders[col])
+
+df = orders[orders['order_status'] == 'delivered'].copy()
+
+df['dias_aprovacao'] = (df['order_approved_at'] - df['order_purchase_timestamp']).dt.total_seconds() / 86400
+df['dias_postagem'] = (df['order_delivered_carrier_date'] - df['order_approved_at']).dt.total_seconds() / 86400
+df['dias_transporte'] = (df['order_delivered_customer_date'] - df['order_delivered_carrier_date']).dt.total_seconds() / 86400
+df['tempo_total'] = (df['order_delivered_customer_date'] - df['order_purchase_timestamp']).dt.total_seconds() / 86400
+
+etapas = pd.DataFrame({
+    'Etapa': ['Aprovação (Banco)', 'Postagem (Vendedor)', 'Transporte (Correios/Transportadora)'],
+    'Dias Médios': [df['dias_aprovacao'].mean(), df['dias_postagem'].mean(), df['dias_transporte'].mean()]
+})
+
+plt.figure(figsize=(10, 5))
+sns.barplot(data=etapas, x='Dias Médios', y='Etapa', color='royalblue')
+plt.title('Gargalos Logísticos: Tempo Médio por Etapa')
+plt.xlabel('Dias')
+plt.ylabel('Etapa')
+plt.show()
+
+df['atrasado'] = df['order_delivered_customer_date'] > df['order_estimated_delivery_date']
+
+reviews_unicos = reviews.drop_duplicates(subset=['order_id'])
+df_reviews = df.merge(reviews_unicos[['order_id', 'review_score']], on='order_id')
+
+impacto_atraso = df_reviews.groupby('atrasado')['review_score'].mean().reset_index()
+impacto_atraso['Status'] = impacto_atraso['atrasado'].map({False: 'No Prazo', True: 'Atrasado'})
+
+plt.figure(figsize=(6, 5))
+sns.barplot(data=impacto_atraso, x='Status', y='review_score', palette='Set2')
+plt.title('O Custo do Atraso: Nota Média (1 a 5)')
+plt.ylim(0, 5) 
+plt.ylabel('Nota Média (1/5)')
+plt.xlabel('Status Entrega')
+plt.show()
+
+df_regiao = df.merge(customers[['customer_id', 'customer_state']], on='customer_id')
+tempo_estado = df_regiao.groupby('customer_state')['tempo_total'].mean().reset_index()
+tempo_estado = tempo_estado.sort_values('tempo_total')
+
+plt.figure(figsize=(12, 6))
+sns.barplot(data=tempo_estado, x='customer_state', y='tempo_total', palette='coolwarm')
+plt.title('Desigualdade Logística: Tempo Médio de Entrega por Estado (UF)')
+plt.xlabel('Estado do Cliente')
+plt.ylabel('Dias Totais de Espera')
+plt.show()
