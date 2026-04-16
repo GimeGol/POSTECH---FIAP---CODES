@@ -1,0 +1,58 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+orders = pd.read_csv('olist_orders_dataset.csv')
+items = pd.read_csv('olist_order_items_dataset.csv')
+products = pd.read_csv('olist_products_dataset.csv')
+sellers = pd.read_csv('olist_sellers_dataset.csv')
+
+orders = orders[orders['order_status'] == 'delivered'].copy()
+orders['order_purchase_timestamp'] = pd.to_datetime(orders['order_purchase_timestamp'])
+orders['mes_ano'] = orders['order_purchase_timestamp'].dt.to_period('M')
+
+vendas = orders.merge(items, on='order_id')
+receita_mensal = vendas.groupby('mes_ano')['price'].sum().reset_index()
+receita_mensal['mes_ano'] = receita_mensal['mes_ano'].astype(str)
+
+receita_mensal = receita_mensal[(receita_mensal['mes_ano'] >= '2017-01') & (receita_mensal['mes_ano'] <= '2018-08')]
+
+
+plt.figure(figsize=(12, 5))
+sns.barplot(data=receita_mensal, x='mes_ano', y='price', color='royalblue')
+plt.title('Evolução da Receita Mensal (R$)')
+plt.xticks(rotation=45)
+plt.ylabel('Receita (milhões de reais)')
+plt.xlabel('Mês/Ano')
+plt.show()
+
+
+vendas_cat = vendas.merge(products, on='product_id')
+top_cat = vendas_cat.groupby('product_category_name')['price'].sum().reset_index()
+top_cat = top_cat.sort_values('price', ascending=False).head(10)
+
+
+plt.figure(figsize=(10, 5))
+sns.barplot(data=top_cat, y='product_category_name', x='price', palette='viridis')
+plt.title('Top 10 Categorias que Mais Geram Receita')
+plt.xticks(rotation=45, ha='right')
+plt.ylabel('Categoria')
+plt.xlabel('Receita (milhões de reais)')
+plt.show()
+
+
+vendas_sellers = vendas.merge(sellers, on='seller_id')
+top_sellers = vendas_sellers.groupby(['seller_id', 'seller_state'])['price'].sum().reset_index()
+top_sellers = top_sellers.sort_values('price', ascending=False).head(10)
+# Achei interessante adicionar labels para os id's para ficar menos estranho no gráfico
+top_sellers['seller_id'] = ['Vendedor ' + str(i+1) for i in range(10)] 
+
+
+plt.figure(figsize=(10, 5))
+sns.barplot(data=top_sellers, x='seller_id', y='price', hue='seller_state', dodge=False)
+plt.title('Top 10 Vendedores por Receita e Seus Estados')
+plt.xticks(rotation=45)
+plt.ylabel('Receita (milhares de reais)')
+plt.xlabel('Vendedor')
+plt.legend(title='Estado')
+plt.show()
